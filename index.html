@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>.pvid Format Converter (Optimized)</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #1e1e2f;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #2a2a40;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            text-align: center;
+            max-width: 500px;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+            padding: 10px;
+            background: #3f3f5a;
+            border-radius: 6px;
+        }
+        button {
+            background-color: #00e5ff;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #00b3cc; }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #aaa;
+        }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>PVID Converter (Optimized)</h2>
+        <p>Upload an image to convert it into the custom text-based .pvid format.</p>
+        
+        <input type="file" id="mediaUpload" accept="image/*">
+        <br>
+        <button id="convertBtn" disabled>Convert to .pvid</button>
+        <p id="status"></p>
+    </div>
+
+    <canvas id="processingCanvas"></canvas>
+
+    <script>
+        const fileInput = document.getElementById('mediaUpload');
+        const convertBtn = document.getElementById('convertBtn');
+        const statusText = document.getElementById('status');
+        const canvas = document.getElementById('processingCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                convertBtn.disabled = false;
+                statusText.innerText = "Ready to convert.";
+            }
+        });
+
+        function rgbToHex(r, g, b) {
+            return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1).toUpperCase();
+        }
+
+        convertBtn.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            statusText.innerText = "Processing... this might take a moment for large images.";
+            convertBtn.disabled = true;
+
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+
+                    const pvidLines = [];
+                    
+                    pvidLines.push(`pixels_row=${canvas.width}`);
+                    pvidLines.push(`pixels_top_bottom=${canvas.height}`);
+
+                    let pixelIndex = 1;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        const hex = rgbToHex(r, g, b);
+                        
+                        // THIS IS THE UPDATED LINE:
+                        // It now pushes "p1=#FFFFFF" instead of "pixel1=#FFFFFF"
+                        pvidLines.push(`p${pixelIndex}=${hex}`);
+                        
+                        pixelIndex++;
+                    }
+
+                    statusText.innerText = "Generating file...";
+                    const finalString = pvidLines.join('\n');
+                    const blob = new Blob([finalString], { type: 'text/plain' });
+                    
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(blob);
+                    
+                    const originalName = file.name.split('.')[0];
+                    downloadLink.download = `${originalName}.pvid`;
+                    
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+
+                    statusText.innerText = `Success! Generated optimized ${canvas.width}x${canvas.height} .pvid file.`;
+                    convertBtn.disabled = false;
+                };
+                img.src = event.target.result;
+            };
+            
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>
