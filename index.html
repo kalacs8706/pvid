@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Frame & Audio Studio</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <title>Video Studio (Server Powered)</title>
     <style>
         :root {
             --bg-color: #121214;
@@ -17,7 +16,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: var(--bg-color);
             color: var(--text);
             margin: 0;
@@ -28,23 +27,14 @@
 
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 500px;
+            margin-top: 40px;
         }
 
         h1 {
             text-align: center;
             color: #fff;
             margin-bottom: 30px;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
-
-        @media (min-width: 768px) {
-            .grid { grid-template-columns: 1fr 1fr; }
         }
 
         .card {
@@ -55,13 +45,6 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-        }
-
-        .card h2 {
-            margin-top: 0;
-            font-size: 1.25rem;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 10px;
         }
 
         .form-group {
@@ -120,7 +103,7 @@
             padding: 12px;
             font-family: monospace;
             font-size: 0.85rem;
-            min-height: 60px;
+            min-height: 50px;
             white-space: pre-line;
         }
 
@@ -139,383 +122,111 @@
             width: 0%;
             transition: width 0.1s linear;
         }
-
-        #downloadLink {
-            display: inline-block;
-            text-align: center;
-            background: #10b981;
-            color: white;
-            padding: 12px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Video Frame & Audio Studio</h1>
+    <h1>Video to ZIP Studio</h1>
     
-    <div class="grid">
-        <div class="card">
-            <h2>1. Video to ZIP Extractor</h2>
-            <div class="form-group">
-                <label>Select Video File</label>
-                <input type="file" id="videoInput" accept="video/*">
-            </div>
-            <div class="form-group">
-                <label>Extraction Rate (Frames per Second)</label>
-                <input type="number" id="fpsInput" value="10" min="1" max="60">
-            </div>
-            <button id="extractBtn">Extract & Package Zip</button>
-            
-            <div class="progress-container" id="extractProgressContainer">
-                <div class="progress-bar" id="extractProgressBar"></div>
-            </div>
-            <div class="status-box" id="extractStatus">Ready.</div>
+    <div class="card">
+        <div class="form-group">
+            <label>Select Video File</label>
+            <input type="file" id="videoInput" accept="video/*">
         </div>
-
-        <div class="card">
-            <h2>2. ZIP to Video Converter</h2>
-            <div class="form-group">
-                <label>Select Packaged ZIP File</label>
-                <input type="file" id="zipInput" accept=".zip">
-            </div>
-            <div class="form-group">
-                <label>Playback Speed (FPS)</label>
-                <input type="number" id="playbackFpsInput" value="10" min="1" max="60">
-            </div>
-            <button id="compileBtn">Rebuild Video</button>
-            
-            <div class="progress-container" id="compileProgressContainer">
-                <div class="progress-bar" id="compileProgressBar"></div>
-            </div>
-            <div class="status-box" id="compileStatus">Ready.</div>
+        <div class="form-group">
+            <label>Extraction Rate (FPS)</label>
+            <input type="number" id="fpsInput" value="10" min="1" max="60">
         </div>
-    </div>
-    
-    <div style="text-align: center; margin-top: 20px;">
-        <a id="downloadLink" style="display: none;">Download Output File</a>
+        <button id="processBtn">Upload & Process on Server</button>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="status-box" id="statusText">Ready.</div>
     </div>
 </div>
 
-<canvas id="processingCanvas" style="display:none;"></canvas>
-<video id="processingVideo" style="display:none;" muted controls playsinline></video>
-
 <script>
-    // Global Elements
-    const videoInput = document.getElementById('videoInput');
-    const fpsInput = document.getElementById('fpsInput');
-    const extractBtn = document.getElementById('extractBtn');
-    const extractStatus = document.getElementById('extractStatus');
-    const extractProgressBar = document.getElementById('extractProgressBar');
-    const extractProgressContainer = document.getElementById('extractProgressContainer');
+    const BACKEND_URL = 'https://video-server-private-backend.onrender.com/process';
 
-    const zipInput = document.getElementById('zipInput');
-    const playbackFpsInput = document.getElementById('playbackFpsInput');
-    const compileBtn = document.getElementById('compileBtn');
-    const compileStatus = document.getElementById('compileStatus');
-    const compileProgressBar = document.getElementById('compileProgressBar');
-    const compileProgressContainer = document.getElementById('compileProgressContainer');
+    document.getElementById('processBtn').addEventListener('click', () => {
+        const videoInput = document.getElementById('videoInput');
+        const fpsInput = document.getElementById('fpsInput');
+        const statusText = document.getElementById('statusText');
+        const progressBar = document.getElementById('progressBar');
+        const progressContainer = document.getElementById('progressContainer');
+        const processBtn = document.getElementById('processBtn');
 
-    const downloadLink = document.getElementById('downloadLink');
-    const canvas = document.getElementById('processingCanvas');
-    const ctx = canvas.getContext('2d');
-    const video = document.getElementById('processingVideo');
-
-    // --- HELPER: FORMAT ETA ---
-    function formatTime(ms) {
-        if (isNaN(ms) || !isFinite(ms)) return "Calculating...";
-        const seconds = Math.ceil(ms / 1000);
-        if (seconds < 60) return `${seconds}s`;
-        const minutes = Math.floor(seconds / 60);
-        return `${minutes}m ${seconds % 60}s`;
-    }
-
-    // --- HELPER: EXTRACT AUDIO TO WAV ---
-    async function extractAudioWav(file) {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const arrayBuffer = await file.arrayBuffer();
-        
-        try {
-            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            return encodeWAV(audioBuffer);
-        } catch (e) {
-            console.warn("Audio track processing failed or missing. Proceeding with video data only.");
-            return null;
-        }
-    }
-
-    // Standard structural WAV encoder
-    function encodeWAV(audioBuffer) {
-        const numOfChan = audioBuffer.numberOfChannels;
-        const sampleRate = audioBuffer.sampleRate;
-        const format = 1; // 1 = PCM
-        const bitDepth = 16;
-        
-        let result;
-        if (numOfChan === 2) {
-            result = interleave(audioBuffer.getChannelData(0), audioBuffer.getChannelData(1));
-        } else {
-            result = audioBuffer.getChannelData(0);
-        }
-        
-        const buffer = new ArrayBuffer(44 + result.length * 2);
-        const view = new DataView(buffer);
-        
-        /* RIFF identifier */
-        writeString(view, 0, 'RIFF');
-        /* file length */
-        view.setUint32(4, 36 + result.length * 2, true);
-        /* RIFF type */
-        writeString(view, 8, 'WAVE');
-        /* format chunk identifier */
-        writeString(view, 12, 'fmt ');
-        /* format chunk length */
-        view.setUint32(16, 16, true);
-        /* sample format (raw) */
-        view.setUint16(20, format, true);
-        /* channel count */
-        view.setUint16(22, numOfChan, true);
-        /* sample rate */
-        view.setUint32(24, sampleRate, true);
-        /* byte rate (sample rate * block align) */
-        view.setUint32(28, sampleRate * numOfChan * (bitDepth / 8), true);
-        /* block align (channel count * bytes per sample) */
-        view.setUint16(32, numOfChan * (bitDepth / 8), true);
-        /* bits per sample */
-        view.setUint16(34, bitDepth, true);
-        /* data chunk identifier */
-        writeString(view, 36, 'data');
-        /* data chunk length */
-        view.setUint32(40, result.length * 2, true);
-        
-        floatTo16BitPCM(view, 44, result);
-        
-        return new Blob([view], { type: 'audio/wav' });
-    }
-
-    function interleave(inputL, inputR) {
-        const length = inputL.length + inputR.length;
-        const result = new Float32Array(length);
-        let index = 0;
-        let inputIndex = 0;
-        while (index < length) {
-            result[index++] = inputL[inputIndex];
-            result[index++] = inputR[inputIndex];
-            inputIndex++;
-        }
-        return result;
-    }
-
-    function floatTo16BitPCM(output, offset, input) {
-        for (let i = 0; i < input.length; i++, offset += 2) {
-            let s = Math.max(-1, Math.min(1, input[i]));
-            output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-        }
-    }
-
-    function writeString(view, offset, string) {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    }
-
-    // --- EXTRACTION PROCESS (VIDEO -> ZIP) ---
-    extractBtn.addEventListener('click', async () => {
         if (!videoInput.files[0]) {
             alert("Please pick a video file first!");
             return;
         }
 
         const file = videoInput.files[0];
-        const fps = parseInt(fpsInput.value);
-        
-        extractBtn.disabled = true;
-        extractProgressContainer.style.display = 'block';
-        downloadLink.style.display = 'none';
+        const fps = fpsInput.value;
 
-        extractStatus.textContent = "Analyzing audio tracks...";
-        const audioBlob = await extractAudioWav(file);
+        // Reset UI elements
+        processBtn.disabled = true;
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        statusText.textContent = "Preparing file upload...";
 
-        const videoUrl = URL.createObjectURL(file);
-        video.src = videoUrl;
-        
-        video.onloadedmetadata = async () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            const duration = video.duration;
-            const totalFrames = Math.floor(duration * fps);
-            const interval = 1 / fps;
-            
-            const zip = new JSZip();
-            const frameFolder = zip.folder("frames");
-            
-            if (audioBlob) {
-                zip.file("audio.wav", audioBlob);
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('fps', fps);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', BACKEND_URL, true);
+        xhr.responseType = 'blob';
+
+        // Track upload progress to the Render server
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.floor((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                statusText.textContent = `Uploading video: ${percent}%\n(Don't close this tab)`;
             }
-
-            let currentFrame = 0;
-            const startTime = Date.now();
-
-            extractStatus.textContent = `Extracting ${totalFrames} frames...`;
-
-            for (let t = 0; t < duration; t += interval) {
-                video.currentTime = t;
-                
-                // Wait structural callback until browser draws frame to seeker pipeline
-                await new Promise((resolve) => {
-                    video.onseeked = resolve;
-                });
-
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // Turn canvas viewport capture into raw blobs
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                const frameName = String(currentFrame).padStart(5, '0') + '.png';
-                frameFolder.file(frameName, blob);
-
-                currentFrame++;
-                
-                // Performance math operations for Progress Bar & UI update
-                const percent = Math.min(100, Math.floor((currentFrame / totalFrames) * 100));
-                extractProgressBar.style.style = `width: ${percent}%`;
-                extractProgressBar.style.width = percent + '%';
-                
-                const timeElapsed = Date.now() - startTime;
-                const estimatedTotalTime = (timeElapsed / currentFrame) * totalFrames;
-                const eta = estimatedTotalTime - timeElapsed;
-
-                extractStatus.textContent = `Frame: ${currentFrame}/${totalFrames} (${percent}%)\nETA: ${formatTime(eta)}`;
-            }
-
-            extractStatus.textContent = "Compressing everything into ZIP archive...";
-            
-            zip.generateAsync({ type: "blob" }).then((content) => {
-                extractStatus.textContent = "Done! Setup downloadable package.";
-                extractBtn.disabled = false;
-                
-                const zipUrl = URL.createObjectURL(content);
-                downloadLink.href = zipUrl;
-                downloadLink.download = file.name.split('.')[0] + "_packaged.zip";
-                downloadLink.style.display = 'block';
-                downloadLink.textContent = "Download Frames ZIP";
-            });
-        };
-    });
-
-    // --- REBUILD PROCESS (ZIP -> VIDEO) ---
-    compileBtn.addEventListener('click', async () => {
-        if (!zipInput.files[0]) {
-            alert("Please pick a valid ZIP file archive first!");
-            return;
-        }
-
-        const file = zipInput.files[0];
-        const fps = parseInt(playbackFpsInput.value);
-
-        compileBtn.disabled = true;
-        compileProgressContainer.style.display = 'block';
-        downloadLink.style.display = 'none';
-        compileStatus.textContent = "Unzipping file database...";
-
-        const zip = await JSZip.loadAsync(file);
-        const frameFiles = [];
-        
-        // Target folder directories safely
-        zip.folder("frames").forEach((relativePath, fileObj) => {
-            if (relativePath.endsWith('.png')) {
-                frameFiles.push(fileObj);
-            }
-        });
-
-        // Ensure natural numeric execution index layout ordering
-        frameFiles.sort((a, b) => a.name.localeCompare(b.name));
-
-        if (frameFiles.length === 0) {
-            alert("No frames discovered inside the target path directory.");
-            compileBtn.disabled = false;
-            return;
-        }
-
-        compileStatus.textContent = `Found ${frameFiles.length} frames. Rebuilding timeline...`;
-
-        // Initialize parameters via the first image node sample data boundaries
-        const firstImgData = await frameFiles[0].async("blob");
-        const firstImg = await defaultValueLoadImg(URL.createObjectURL(firstImgData));
-        canvas.width = firstImg.width;
-        canvas.height = firstImg.height;
-
-        // Establish Stream Capturer pipelines
-        const stream = canvas.captureStream(fps);
-        
-        // Setup MediaRecorder parameters. Target native profiles if on iPad Safari/Chrome container structures
-        let options = { mimeType: 'video/webm;codecs=vp9' };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            options = { mimeType: 'video/mp4' };
-        }
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            options = { mimeType: '' }; // Fallback system container settings choice automatically
-        }
-
-        const recorder = new MediaRecorder(stream, options);
-        const chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
-
-        recorder.start();
-
-        const startTime = Date.now();
-        
-        for (let i = 0; i < frameFiles.length; i++) {
-            const imgBlob = await frameFiles[i].async("blob");
-            const imgUrl = URL.createObjectURL(imgBlob);
-            const img = await defaultValueLoadImg(imgUrl);
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-            
-            URL.revokeObjectURL(imgUrl);
-
-            // Frame execution sequence delay intervals
-            await new Promise(r => setTimeout(r, 1000 / fps));
-
-            const percent = Math.min(100, Math.floor((i / frameFiles.length) * 100));
-            compileProgressBar.style.width = percent + '%';
-            
-            const timeElapsed = Date.now() - startTime;
-            const estimatedTotalTime = (timeElapsed / (i + 1)) * frameFiles.length;
-            const eta = estimatedTotalTime - timeElapsed;
-            
-            compileStatus.textContent = `Rendering: ${i+1}/${frameFiles.length} (${percent}%)\nETA: ${formatTime(eta)}`;
-        }
-
-        recorder.onstop = () => {
-            const videoBlob = new Blob(chunks, { type: recorder.mimeType || 'video/mp4' });
-            compileStatus.textContent = "Video rebuilt successfully!";
-            compileBtn.disabled = false;
-
-            const outUrl = URL.createObjectURL(videoBlob);
-            downloadLink.href = outUrl;
-            downloadLink.download = "reconstructed_video.mp4";
-            downloadLink.style.display = 'block';
-            downloadLink.textContent = "Download Rebuilt Video";
         };
 
-        // Complete track tracking structure
-        recorder.stop();
-    });
+        // Triggered when upload completes and server begins working
+        xhr.upload.onload = () => {
+            progressBar.style.width = '100%';
+            statusText.textContent = "Upload complete! \nServer is slicing frames and creating ZIP file...\nThis may take a minute.";
+        };
 
-    function defaultValueLoadImg(url) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = url;
-        });
-    }
+        // Triggered when the server returns the final ZIP file
+        xhr.onload = () => {
+            processBtn.disabled = false;
+            
+            if (xhr.status === 200) {
+                statusText.textContent = "Done! Download started.";
+                
+                // Convert response data into a downloadable browser anchor
+                const blob = xhr.response;
+                const downloadUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `${file.name.split('.')[0]}_assets.zip`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(downloadUrl);
+            } else {
+                statusText.textContent = "Error: Server failed to process video file.";
+                alert("The server encountered an error processing the video.");
+            }
+        };
+
+        xhr.onerror = () => {
+            processBtn.disabled = false;
+            statusText.textContent = "Connection error occurred.";
+            alert("Could not connect to the processing server.");
+        };
+
+        // Fire the request off to Render
+        xhr.send(formData);
+    });
 </script>
 
 </body>
