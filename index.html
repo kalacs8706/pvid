@@ -3,148 +3,520 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>.pvid Format Converter (Optimized)</title>
+    <title>Video Frame & Audio Studio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1a1a1e;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #2e2e38;
+        }
+
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background-color: #1e1e2f;
-            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #fff;
+            margin-bottom: 30px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
+            gap: 16px;
         }
-        .container {
-            background-color: #2a2a40;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-            text-align: center;
-            max-width: 500px;
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
         }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
         input[type="file"] {
-            margin: 20px 0;
+            background: #252529;
             padding: 10px;
-            background: #3f3f5a;
             border-radius: 6px;
-        }
-        button {
-            background-color: #00e5ff;
-            color: #000;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 6px;
+            border: 1px dashed var(--border);
+            color: var(--text);
             cursor: pointer;
-            transition: background 0.3s;
         }
-        button:hover { background-color: #00b3cc; }
-        button:disabled { background-color: #555; cursor: not-allowed; }
-        #status {
-            margin-top: 15px;
-            font-size: 14px;
-            color: #aaa;
+
+        input[type="number"] {
+            background: #252529;
+            border: 1px solid var(--border);
+            padding: 8px;
+            border-radius: 6px;
+            color: #fff;
         }
-        canvas { display: none; }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+        }
+
+        button:disabled {
+            background: #404040;
+            color: #808080;
+            cursor: not-allowed;
+        }
+
+        .status-box {
+            background: #252529;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            min-height: 60px;
+            white-space: pre-line;
+        }
+
+        .progress-container {
+            background: #2d2d34;
+            border-radius: 10px;
+            height: 10px;
+            width: 100%;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            background: var(--accent);
+            height: 100%;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        #downloadLink {
+            display: inline-block;
+            text-align: center;
+            background: #10b981;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>PVID Converter (Optimized)</h2>
-        <p>Upload an image to convert it into the custom text-based .pvid format.</p>
-        
-        <input type="file" id="mediaUpload" accept="image/*">
-        <br>
-        <button id="convertBtn" disabled>Convert to .pvid</button>
-        <p id="status"></p>
+<div class="container">
+    <h1>Video Frame & Audio Studio</h1>
+    
+    <div class="grid">
+        <div class="card">
+            <h2>1. Video to ZIP Extractor</h2>
+            <div class="form-group">
+                <label>Select Video File</label>
+                <input type="file" id="videoInput" accept="video/*">
+            </div>
+            <div class="form-group">
+                <label>Extraction Rate (Frames per Second)</label>
+                <input type="number" id="fpsInput" value="10" min="1" max="60">
+            </div>
+            <button id="extractBtn">Extract & Package Zip</button>
+            
+            <div class="progress-container" id="extractProgressContainer">
+                <div class="progress-bar" id="extractProgressBar"></div>
+            </div>
+            <div class="status-box" id="extractStatus">Ready.</div>
+        </div>
+
+        <div class="card">
+            <h2>2. ZIP to Video Converter</h2>
+            <div class="form-group">
+                <label>Select Packaged ZIP File</label>
+                <input type="file" id="zipInput" accept=".zip">
+            </div>
+            <div class="form-group">
+                <label>Playback Speed (FPS)</label>
+                <input type="number" id="playbackFpsInput" value="10" min="1" max="60">
+            </div>
+            <button id="compileBtn">Rebuild Video</button>
+            
+            <div class="progress-container" id="compileProgressContainer">
+                <div class="progress-bar" id="compileProgressBar"></div>
+            </div>
+            <div class="status-box" id="compileStatus">Ready.</div>
+        </div>
     </div>
+    
+    <div style="text-align: center; margin-top: 20px;">
+        <a id="downloadLink" style="display: none;">Download Output File</a>
+    </div>
+</div>
 
-    <canvas id="processingCanvas"></canvas>
+<canvas id="processingCanvas" style="display:none;"></canvas>
+<video id="processingVideo" style="display:none;" muted controls playsinline></video>
 
-    <script>
-        const fileInput = document.getElementById('mediaUpload');
-        const convertBtn = document.getElementById('convertBtn');
-        const statusText = document.getElementById('status');
-        const canvas = document.getElementById('processingCanvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+<script>
+    // Global Elements
+    const videoInput = document.getElementById('videoInput');
+    const fpsInput = document.getElementById('fpsInput');
+    const extractBtn = document.getElementById('extractBtn');
+    const extractStatus = document.getElementById('extractStatus');
+    const extractProgressBar = document.getElementById('extractProgressBar');
+    const extractProgressContainer = document.getElementById('extractProgressContainer');
 
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length > 0) {
-                convertBtn.disabled = false;
-                statusText.innerText = "Ready to convert.";
+    const zipInput = document.getElementById('zipInput');
+    const playbackFpsInput = document.getElementById('playbackFpsInput');
+    const compileBtn = document.getElementById('compileBtn');
+    const compileStatus = document.getElementById('compileStatus');
+    const compileProgressBar = document.getElementById('compileProgressBar');
+    const compileProgressContainer = document.getElementById('compileProgressContainer');
+
+    const downloadLink = document.getElementById('downloadLink');
+    const canvas = document.getElementById('processingCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('processingVideo');
+
+    // --- HELPER: FORMAT ETA ---
+    function formatTime(ms) {
+        if (isNaN(ms) || !isFinite(ms)) return "Calculating...";
+        const seconds = Math.ceil(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        return `${minutes}m ${seconds % 60}s`;
+    }
+
+    // --- HELPER: EXTRACT AUDIO TO WAV ---
+    async function extractAudioWav(file) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const arrayBuffer = await file.arrayBuffer();
+        
+        try {
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            return encodeWAV(audioBuffer);
+        } catch (e) {
+            console.warn("Audio track processing failed or missing. Proceeding with video data only.");
+            return null;
+        }
+    }
+
+    // Standard structural WAV encoder
+    function encodeWAV(audioBuffer) {
+        const numOfChan = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const format = 1; // 1 = PCM
+        const bitDepth = 16;
+        
+        let result;
+        if (numOfChan === 2) {
+            result = interleave(audioBuffer.getChannelData(0), audioBuffer.getChannelData(1));
+        } else {
+            result = audioBuffer.getChannelData(0);
+        }
+        
+        const buffer = new ArrayBuffer(44 + result.length * 2);
+        const view = new DataView(buffer);
+        
+        /* RIFF identifier */
+        writeString(view, 0, 'RIFF');
+        /* file length */
+        view.setUint32(4, 36 + result.length * 2, true);
+        /* RIFF type */
+        writeString(view, 8, 'WAVE');
+        /* format chunk identifier */
+        writeString(view, 12, 'fmt ');
+        /* format chunk length */
+        view.setUint32(16, 16, true);
+        /* sample format (raw) */
+        view.setUint16(20, format, true);
+        /* channel count */
+        view.setUint16(22, numOfChan, true);
+        /* sample rate */
+        view.setUint32(24, sampleRate, true);
+        /* byte rate (sample rate * block align) */
+        view.setUint32(28, sampleRate * numOfChan * (bitDepth / 8), true);
+        /* block align (channel count * bytes per sample) */
+        view.setUint16(32, numOfChan * (bitDepth / 8), true);
+        /* bits per sample */
+        view.setUint16(34, bitDepth, true);
+        /* data chunk identifier */
+        writeString(view, 36, 'data');
+        /* data chunk length */
+        view.setUint32(40, result.length * 2, true);
+        
+        floatTo16BitPCM(view, 44, result);
+        
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
+    function interleave(inputL, inputR) {
+        const length = inputL.length + inputR.length;
+        const result = new Float32Array(length);
+        let index = 0;
+        let inputIndex = 0;
+        while (index < length) {
+            result[index++] = inputL[inputIndex];
+            result[index++] = inputR[inputIndex];
+            inputIndex++;
+        }
+        return result;
+    }
+
+    function floatTo16BitPCM(output, offset, input) {
+        for (let i = 0; i < input.length; i++, offset += 2) {
+            let s = Math.max(-1, Math.min(1, input[i]));
+            output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+    }
+
+    function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    }
+
+    // --- EXTRACTION PROCESS (VIDEO -> ZIP) ---
+    extractBtn.addEventListener('click', async () => {
+        if (!videoInput.files[0]) {
+            alert("Please pick a video file first!");
+            return;
+        }
+
+        const file = videoInput.files[0];
+        const fps = parseInt(fpsInput.value);
+        
+        extractBtn.disabled = true;
+        extractProgressContainer.style.display = 'block';
+        downloadLink.style.display = 'none';
+
+        extractStatus.textContent = "Analyzing audio tracks...";
+        const audioBlob = await extractAudioWav(file);
+
+        const videoUrl = URL.createObjectURL(file);
+        video.src = videoUrl;
+        
+        video.onloadedmetadata = async () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const duration = video.duration;
+            const totalFrames = Math.floor(duration * fps);
+            const interval = 1 / fps;
+            
+            const zip = new JSZip();
+            const frameFolder = zip.folder("frames");
+            
+            if (audioBlob) {
+                zip.file("audio.wav", audioBlob);
+            }
+
+            let currentFrame = 0;
+            const startTime = Date.now();
+
+            extractStatus.textContent = `Extracting ${totalFrames} frames...`;
+
+            for (let t = 0; t < duration; t += interval) {
+                video.currentTime = t;
+                
+                // Wait structural callback until browser draws frame to seeker pipeline
+                await new Promise((resolve) => {
+                    video.onseeked = resolve;
+                });
+
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Turn canvas viewport capture into raw blobs
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const frameName = String(currentFrame).padStart(5, '0') + '.png';
+                frameFolder.file(frameName, blob);
+
+                currentFrame++;
+                
+                // Performance math operations for Progress Bar & UI update
+                const percent = Math.min(100, Math.floor((currentFrame / totalFrames) * 100));
+                extractProgressBar.style.style = `width: ${percent}%`;
+                extractProgressBar.style.width = percent + '%';
+                
+                const timeElapsed = Date.now() - startTime;
+                const estimatedTotalTime = (timeElapsed / currentFrame) * totalFrames;
+                const eta = estimatedTotalTime - timeElapsed;
+
+                extractStatus.textContent = `Frame: ${currentFrame}/${totalFrames} (${percent}%)\nETA: ${formatTime(eta)}`;
+            }
+
+            extractStatus.textContent = "Compressing everything into ZIP archive...";
+            
+            zip.generateAsync({ type: "blob" }).then((content) => {
+                extractStatus.textContent = "Done! Setup downloadable package.";
+                extractBtn.disabled = false;
+                
+                const zipUrl = URL.createObjectURL(content);
+                downloadLink.href = zipUrl;
+                downloadLink.download = file.name.split('.')[0] + "_packaged.zip";
+                downloadLink.style.display = 'block';
+                downloadLink.textContent = "Download Frames ZIP";
+            });
+        };
+    });
+
+    // --- REBUILD PROCESS (ZIP -> VIDEO) ---
+    compileBtn.addEventListener('click', async () => {
+        if (!zipInput.files[0]) {
+            alert("Please pick a valid ZIP file archive first!");
+            return;
+        }
+
+        const file = zipInput.files[0];
+        const fps = parseInt(playbackFpsInput.value);
+
+        compileBtn.disabled = true;
+        compileProgressContainer.style.display = 'block';
+        downloadLink.style.display = 'none';
+        compileStatus.textContent = "Unzipping file database...";
+
+        const zip = await JSZip.loadAsync(file);
+        const frameFiles = [];
+        
+        // Target folder directories safely
+        zip.folder("frames").forEach((relativePath, fileObj) => {
+            if (relativePath.endsWith('.png')) {
+                frameFiles.push(fileObj);
             }
         });
 
-        function rgbToHex(r, g, b) {
-            return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1).toUpperCase();
+        // Ensure natural numeric execution index layout ordering
+        frameFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+        if (frameFiles.length === 0) {
+            alert("No frames discovered inside the target path directory.");
+            compileBtn.disabled = false;
+            return;
         }
 
-        convertBtn.addEventListener('click', () => {
-            const file = fileInput.files[0];
-            if (!file) return;
+        compileStatus.textContent = `Found ${frameFiles.length} frames. Rebuilding timeline...`;
 
-            statusText.innerText = "Processing... this might take a moment for large images.";
-            convertBtn.disabled = true;
+        // Initialize parameters via the first image node sample data boundaries
+        const firstImgData = await frameFiles[0].async("blob");
+        const firstImg = await defaultValueLoadImg(URL.createObjectURL(firstImgData));
+        canvas.width = firstImg.width;
+        canvas.height = firstImg.height;
 
-            const reader = new FileReader();
+        // Establish Stream Capturer pipelines
+        const stream = canvas.captureStream(fps);
+        
+        // Setup MediaRecorder parameters. Target native profiles if on iPad Safari/Chrome container structures
+        let options = { mimeType: 'video/webm;codecs=vp9' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options = { mimeType: 'video/mp4' };
+        }
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options = { mimeType: '' }; // Fallback system container settings choice automatically
+        }
+
+        const recorder = new MediaRecorder(stream, options);
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+
+        recorder.start();
+
+        const startTime = Date.now();
+        
+        for (let i = 0; i < frameFiles.length; i++) {
+            const imgBlob = await frameFiles[i].async("blob");
+            const imgUrl = URL.createObjectURL(imgBlob);
+            const img = await defaultValueLoadImg(imgUrl);
             
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    
-                    ctx.drawImage(img, 0, 0);
-                    
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const data = imageData.data;
-
-                    const pvidLines = [];
-                    
-                    pvidLines.push(`pixels_row=${canvas.width}`);
-                    pvidLines.push(`pixels_top_bottom=${canvas.height}`);
-
-                    let pixelIndex = 1;
-                    for (let i = 0; i < data.length; i += 4) {
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        
-                        const hex = rgbToHex(r, g, b);
-                        
-                        // THIS IS THE UPDATED LINE:
-                        // It now pushes "p1=#FFFFFF" instead of "pixel1=#FFFFFF"
-                        pvidLines.push(`p${pixelIndex}=${hex}`);
-                        
-                        pixelIndex++;
-                    }
-
-                    statusText.innerText = "Generating file...";
-                    const finalString = pvidLines.join('\n');
-                    const blob = new Blob([finalString], { type: 'text/plain' });
-                    
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = URL.createObjectURL(blob);
-                    
-                    const originalName = file.name.split('.')[0];
-                    downloadLink.download = `${originalName}.pvid`;
-                    
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
-                    document.body.removeChild(downloadLink);
-
-                    statusText.innerText = `Success! Generated optimized ${canvas.width}x${canvas.height} .pvid file.`;
-                    convertBtn.disabled = false;
-                };
-                img.src = event.target.result;
-            };
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
             
-            reader.readAsDataURL(file);
+            URL.revokeObjectURL(imgUrl);
+
+            // Frame execution sequence delay intervals
+            await new Promise(r => setTimeout(r, 1000 / fps));
+
+            const percent = Math.min(100, Math.floor((i / frameFiles.length) * 100));
+            compileProgressBar.style.width = percent + '%';
+            
+            const timeElapsed = Date.now() - startTime;
+            const estimatedTotalTime = (timeElapsed / (i + 1)) * frameFiles.length;
+            const eta = estimatedTotalTime - timeElapsed;
+            
+            compileStatus.textContent = `Rendering: ${i+1}/${frameFiles.length} (${percent}%)\nETA: ${formatTime(eta)}`;
+        }
+
+        recorder.onstop = () => {
+            const videoBlob = new Blob(chunks, { type: recorder.mimeType || 'video/mp4' });
+            compileStatus.textContent = "Video rebuilt successfully!";
+            compileBtn.disabled = false;
+
+            const outUrl = URL.createObjectURL(videoBlob);
+            downloadLink.href = outUrl;
+            downloadLink.download = "reconstructed_video.mp4";
+            downloadLink.style.display = 'block';
+            downloadLink.textContent = "Download Rebuilt Video";
+        };
+
+        // Complete track tracking structure
+        recorder.stop();
+    });
+
+    function defaultValueLoadImg(url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
         });
-    </script>
+    }
+</script>
+
 </body>
 </html>
