@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Studio (Server Powered)</title>
+    <title>Video Framework Studio</title>
     <style>
         :root {
             --bg-color: #121214;
@@ -25,17 +25,15 @@
             justify-content: center;
         }
 
-        .container {
-            width: 100%;
-            max-width: 500px;
-            margin-top: 40px;
+        .container { width: 100%; max-width: 900px; }
+        h1 { text-align: center; color: #fff; margin-bottom: 30px; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
         }
-
-        h1 {
-            text-align: center;
-            color: #fff;
-            margin-bottom: 30px;
-        }
+        @media (min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
 
         .card {
             background: var(--card-bg);
@@ -46,187 +44,170 @@
             flex-direction: column;
             gap: 16px;
         }
+        .card h2 { margin: 0 0 10px 0; font-size: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 8px;}
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        label {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        input[type="file"] {
-            background: #252529;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px dashed var(--border);
-            color: var(--text);
-            cursor: pointer;
-        }
-
-        input[type="number"] {
-            background: #252529;
-            border: 1px solid var(--border);
-            padding: 8px;
-            border-radius: 6px;
-            color: #fff;
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
+        input[type="file"], input[type="number"] {
+            background: #252529; border: 1px solid var(--border); padding: 10px; border-radius: 6px; color: #fff;
         }
 
         button {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
+            background: var(--accent); color: white; border: none; padding: 12px;
+            border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;
         }
-
-        button:hover {
-            background: var(--accent-hover);
-        }
-
-        button:disabled {
-            background: #404040;
-            color: #808080;
-            cursor: not-allowed;
-        }
+        button:hover { background: var(--accent-hover); }
+        button:disabled { background: #404040; color: #808080; cursor: not-allowed; }
 
         .status-box {
-            background: #252529;
-            border-radius: 6px;
-            padding: 12px;
-            font-family: monospace;
-            font-size: 0.85rem;
-            min-height: 50px;
-            white-space: pre-line;
+            background: #252529; border-radius: 6px; padding: 12px;
+            font-family: monospace; font-size: 0.85rem; min-height: 55px; white-space: pre-line;
         }
 
-        .progress-container {
-            background: #2d2d34;
-            border-radius: 10px;
-            height: 10px;
-            width: 100%;
-            overflow: hidden;
-            display: none;
-        }
-
-        .progress-bar {
-            background: var(--accent);
-            height: 100%;
-            width: 0%;
-            transition: width 0.1s linear;
-        }
+        .progress-container { background: #2d2d34; border-radius: 10px; height: 10px; width: 100%; overflow: hidden; display: none; }
+        .progress-bar { background: var(--accent); height: 100%; width: 0%; transition: width 0.2s ease; }
+        .progress-bar.server { background: #10b981; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Video to ZIP Studio</h1>
+    <h1>Video & Asset Framework Studio</h1>
     
-    <div class="card">
-        <div class="form-group">
-            <label>Select Video File</label>
-            <input type="file" id="videoInput" accept="video/*">
+    <div class="grid">
+        <div class="card" id="videoCard">
+            <h2>1. Video to ZIP Extractor</h2>
+            <div class="form-group">
+                <label>Target Video File</label>
+                <input type="file" class="file-input" accept="video/*">
+            </div>
+            <div class="form-group">
+                <label>Extraction Framerate (FPS)</label>
+                <input type="number" class="fps-input" value="10" min="1" max="60">
+            </div>
+            <button class="action-btn">Extract & Package ZIP</button>
+            <div class="progress-container"><div class="progress-bar"></div></div>
+            <div class="status-box">Ready.</div>
         </div>
-        <div class="form-group">
-            <label>Extraction Rate (FPS)</label>
-            <input type="number" id="fpsInput" value="10" min="1" max="60">
+
+        <div class="card" id="zipCard">
+            <h2>2. ZIP to Video Compiler</h2>
+            <div class="form-group">
+                <label>Asset ZIP File</label>
+                <input type="file" class="file-input" accept=".zip">
+            </div>
+            <div class="form-group">
+                <label>Rebuild Playback Rate (FPS)</label>
+                <input type="number" class="fps-input" value="10" min="1" max="60">
+            </div>
+            <button class="action-btn">Rebuild Video File</button>
+            <div class="progress-container"><div class="progress-bar"></div></div>
+            <div class="status-box">Ready.</div>
         </div>
-        <button id="processBtn">Upload & Process on Server</button>
-        
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar" id="progressBar"></div>
-        </div>
-        <div class="status-box" id="statusText">Ready.</div>
     </div>
 </div>
 
 <script>
-    const BACKEND_URL = 'https://video-server-private-backend.onrender.com/process';
+    const BASE_URL = 'https://video-server-private-backend.onrender.com';
 
-    document.getElementById('processBtn').addEventListener('click', () => {
-        const videoInput = document.getElementById('videoInput');
-        const fpsInput = document.getElementById('fpsInput');
-        const statusText = document.getElementById('statusText');
-        const progressBar = document.getElementById('progressBar');
-        const progressContainer = document.getElementById('progressContainer');
-        const processBtn = document.getElementById('processBtn');
+    setupCard('videoCard', '/process-video', 'video');
+    setupCard('zipCard', '/process-zip', 'zip');
 
-        if (!videoInput.files[0]) {
-            alert("Please pick a video file first!");
-            return;
-        }
+    function setupCard(cardId, endpoint, fieldName) {
+        const card = document.getElementById(cardId);
+        const fileInput = card.querySelector('.file-input');
+        const fpsInput = card.querySelector('.fps-input');
+        const button = card.querySelector('.action-btn');
+        const pContainer = card.querySelector('.progress-container');
+        const pBar = card.querySelector('.progress-bar');
+        const status = card.querySelector('.status-box');
 
-        const file = videoInput.files[0];
-        const fps = fpsInput.value;
-
-        // Reset UI elements
-        processBtn.disabled = true;
-        progressContainer.style.display = 'block';
-        progressBar.style.width = '0%';
-        statusText.textContent = "Preparing file upload...";
-
-        const formData = new FormData();
-        formData.append('video', file);
-        formData.append('fps', fps);
-
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', BACKEND_URL, true);
-        xhr.responseType = 'blob';
-
-        // Track upload progress to the Render server
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const percent = Math.floor((e.loaded / e.total) * 100);
-                progressBar.style.width = percent + '%';
-                statusText.textContent = `Uploading video: ${percent}%\n(Don't close this tab)`;
+        button.addEventListener('click', () => {
+            if (!fileInput.files[0]) {
+                alert("Please select a target source file first!");
+                return;
             }
-        };
 
-        // Triggered when upload completes and server begins working
-        xhr.upload.onload = () => {
-            progressBar.style.width = '100%';
-            statusText.textContent = "Upload complete! \nServer is slicing frames and creating ZIP file...\nThis may take a minute.";
-        };
+            button.disabled = true;
+            pContainer.style.display = 'block';
+            pBar.className = 'progress-bar'; // Reset to standard upload styling
+            pBar.style.width = '0%';
+            status.textContent = "Connecting to remote deployment...";
 
-        // Triggered when the server returns the final ZIP file
-        xhr.onload = () => {
-            processBtn.disabled = false;
-            
-            if (xhr.status === 200) {
-                statusText.textContent = "Done! Download started.";
-                
-                // Convert response data into a downloadable browser anchor
-                const blob = xhr.response;
-                const downloadUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                a.download = `${file.name.split('.')[0]}_assets.zip`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(downloadUrl);
-            } else {
-                statusText.textContent = "Error: Server failed to process video file.";
-                alert("The server encountered an error processing the video.");
+            const formData = new FormData();
+            formData.append(fieldName, fileInput.files[0]);
+            formData.append('fps', fpsInput.value);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${BASE_URL}${endpoint}`, true);
+            xhr.responseType = 'json';
+
+            // 1. Monitor Client Data Upload to Server
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.floor((e.loaded / e.total) * 100);
+                    pBar.style.width = pct + '%';
+                    status.textContent = `Uploading raw data asset: ${pct}%`;
+                }
+            };
+
+            xhr.onload = () => {
+                if (xhr.status === 200 && xhr.response?.jobId) {
+                    const jobId = xhr.response.jobId;
+                    pBar.classList.add('server'); // Turn progress bar green for server operations
+                    pollJobStatus(jobId, card);
+                } else {
+                    resetCard(card, "Upload phase connection configuration rejected.");
+                }
+            };
+
+            xhr.onerror = () => resetCard(card, "Network transaction failure.");
+            xhr.send(formData);
+        });
+    }
+
+    // 2. Poll Server Job Status Ecosystem
+    function pollJobStatus(jobId, card) {
+        const pBar = card.querySelector('.progress-bar');
+        const status = card.querySelector('.status-box');
+        
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/job/${jobId}`);
+                if (!res.ok) throw new Error();
+                const job = await res.json();
+
+                if (job.status === 'processing') {
+                    pBar.style.width = job.progress + '%';
+                    status.textContent = `Server Engine Status: [${job.stage}]\nProgress: ${job.progress}%`;
+                } else if (job.status === 'completed') {
+                    clearInterval(interval);
+                    pBar.style.width = '100%';
+                    status.textContent = "Server jobs complete! Pulling output file sequence...";
+                    
+                    // Direct Download Trigger Link Generation
+                    const a = document.createElement('a');
+                    a.href = `${BASE_URL}/download/${jobId}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    
+                    setTimeout(() => resetCard(card, "Task sequence completed cleanly."), 2000);
+                } else if (job.status === 'failed') {
+                    clearInterval(interval);
+                    resetCard(card, "Server engine encountered encoding layout system failures.");
+                }
+            } catch {
+                clearInterval(interval);
+                resetCard(card, "Connection tracking pipeline broke.");
             }
-        };
+        }, 1000);
+    }
 
-        xhr.onerror = () => {
-            processBtn.disabled = false;
-            statusText.textContent = "Connection error occurred.";
-            alert("Could not connect to the processing server.");
-        };
-
-        // Fire the request off to Render
-        xhr.send(formData);
-    });
+    function resetCard(card, message) {
+        card.querySelector('.action-btn').disabled = false;
+        card.querySelector('.status-box').textContent = message;
+    }
 </script>
 
 </body>
